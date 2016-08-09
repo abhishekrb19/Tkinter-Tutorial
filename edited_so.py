@@ -1,7 +1,8 @@
 import matplotlib
 matplotlib.use('TkAgg')
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt # TODO(abhishek): consider removing pyplot and just stick w/ matplotlib
+# Check: http://stackoverflow.com/questions/25839795/opening-a-plot-in-tkinter-only-no-matplotlib-popup
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
 import Tkinter as tk
@@ -18,10 +19,13 @@ import custom_config
 import logging
 import gflags
 
+from Tkinter import Label, Entry
+
 class Application(tk.Frame):
-    def __init__(self, master=None, shared_queue=None):
+    def __init__(self, master=None, shared_queue=None, interactive_filter_queue=None):
         tk.Frame.__init__(self,master)
         self.data_queue = shared_queue
+        self.interactive_queue = interactive_filter_queue
         self.createWidgets()
 
 
@@ -30,31 +34,47 @@ class Application(tk.Frame):
         # ax=fig.add_axes([0.1,0.1,0.8,0.8],polar=True)
         self.gs= GridSpec(3,1)
         ax = self.fig.add_subplot(self.gs[0:2,:])
-        self.im = ax.imshow(-np.random.random([128,128]), origin = 'upper', cmap=plt.cm.RdYlGn, interpolation = 'nearest', vmax=0, vmin=-40000)
+        self.im = ax.imshow(-np.random.random([128,128]), origin = 'upper', cmap=plt.cm.RdYlGn, interpolation = 'nearest', vmax=0, vmin=-400000)
 
+
+        # bar graph visualization
         self.num_graphed = 0
+        self.topkplot = self.fig.add_subplot(self.gs[2,:])
+        self.topkplot.set_title('Top K hitters Stats')
 
         self.canvas = FigureCanvasTkAgg(self.fig,master=root)
         self.canvas.get_tk_widget().grid(row=0,column=1)
-        self.canvas.show()
+
 
         # self.plotbutton=tk.Button(master=root, text="plot", command=lambda: self.plot(canvas,ax,im))
         self.plotbutton = tk.Button(master=root, text="plot", command=lambda: self.plot())
         self.plotbutton.grid(row=0,column=0)
 
+        self.srcbin_label = Label(master=root, text="Enter the dst bin to filter: ")
+        self.srcbin_label.grid(row=0, column=0)
+
+        self.srcbin_entry = Entry(master=root)
+        self.srcbin_entry.grid(row=1, column=0)
+        self.srcbin_entry.bind("<Return>",self.evaluate)
+        self.canvas.show()
         logging.info("Window configured!")
         #return im
 
+    def evaluate(self,val):
+        print "entered value:", self.srcbin_entry.get() # data from the Entry / Textbox!
+        filter_bin = self.srcbin_entry.get()
+        self.interactive_queue.put(filter_bin)
 
 
 
     #def plot(self,canvas,ax,im):
     # TODO(abhishek): change this method to pause/play!
     def plot(self):
-        self.im.set_array(np.random.random([128,128]))
-        bar_rect = plt.bar([5,0,19], [600,100,200], align='center', alpha=0.3, width=0.2, color='maroon')
+        pass
+        # self.im.set_array(np.random.random([128,128]))
+        # bar_rect = plt.bar([5,0,19], [600,100,200], align='center', alpha=0.3, width=0.2, color='maroon')
         # im = ax.imshow(np.random.random([128,128]), origin = 'upper', cmap=plt.cm.RdYlGn, interpolation = 'nearest')
-        self.canvas.draw()
+        # self.canvas.draw()
 
 
 
@@ -77,13 +97,13 @@ class Application(tk.Frame):
                 combined.append(src + "\n - \n" + cap_obj[2][idx])
             y_pos = np.arange(len(combined))
 
-            # TODO(abhishek): Push this to below ==0: block (to avoid re-drawing all the time)?
-            self.topkplot = self.fig.add_subplot(self.gs[2,:])
-            self.topkplot.set_title('Top K hitters Stats')
+            # # TODO(abhishek): Push this to below ==0: block (to avoid re-drawing all the time)?
+
 
             if self.num_graphed == 0:
 
                 self.bar_rect = plt.bar(y_pos, cap_obj[3], align='center', alpha=0.3, width=0.2, color='maroon')
+                self.num_graphed += 1
             else:
                 #topkplot = self.fig.add_subplot(gs[2,:])
                 #topkplot.set_title('Top K hitters Stats')
@@ -91,13 +111,14 @@ class Application(tk.Frame):
                     for rect, h in zip(self.bar_rect, cap_obj[3]):
                         rect.set_height(h)
 
-            anno3 = self.topkplot.annotate('Current databrick visualising :%d'%(1), xy=(len(cap_obj[3]), 500000),horizontalalignment='right', verticalalignment='bottom')
+
             plt.xticks(y_pos, combined)
             plt.ylabel('# of Bytes')
             plt.xlabel('Top %d hitters (src ip - dst ip)' %len(combined))
 
-            plt.pause(0.3)
-            anno3.remove()
+
+            # #plt.pause(0.3) # --- > Culprit -- pops up another window!!? Check the top import here comments to avoid pyplot
+            # anno3.remove()
 
             self.canvas.draw()
             root.after(1000, self.Refresher) # every second...
@@ -138,12 +159,18 @@ class FlowtransmitImpl(ip_proto_capnp.Flowtransmit.Server):
         # logging.warn("CHECKKK Databrick:: %d"%(databrick))
 
         data_queue.put((np_databrick, src_hitters_li, dst_hitters_li, hitter_bytes))
-        # filter = interactive_filter_queue.get()
-        # print "raw filter:",filter
+
+        try:
+            filter_bin = interactive_filter_queue.get(block = False)
+            logging.info("filter bin entered: %d",int(filter_bin))
+            return int(filter_bin)
+        except:
+            logging.info("Nothing was entered")
+            return
         # filter = filter or 0
         # print "mod filter:",filter
         # return filter
-        return 1
+        #return 1
         #print "filter rx:",filter
         #return filter
         #return int(filter)
@@ -172,14 +199,16 @@ if __name__ == '__main__':
     manager = multiprocessing.Manager()
     data_queue = manager.Queue()
 
-    interactive_filter_queue = manager.Queue()
+    #interactive_filter_queue = manager.Queue()
+    interactive_filter_queue = Queue()
 
     cap_conn_process = Process(target=listen_conn_process, args=(data_queue,interactive_filter_queue, port_number))
     cap_conn_process.start()
     logging.info("Cap'n Proto process started on port:%d"%port_number)
 
     root = tk.Tk()
-    app = Application(master=root, shared_queue=data_queue)
+    app = Application(master=root, shared_queue=data_queue,interactive_filter_queue=interactive_filter_queue)
+    root.title("AMON Viz")
     app.Refresher()
     app.mainloop()
     # logging.info("Control never comes here")
