@@ -22,17 +22,20 @@ import gflags
 from Tkinter import Label, Entry
 
 class Application(tk.Frame):
+# class Application:
     def __init__(self, master=None, shared_queue=None, interactive_filter_queue=None):
-        tk.Frame.__init__(self,master)
+        self.frame = tk.Frame.__init__(self,master)
+        # self.frame = tk.Frame(master)
+        self.toolbar = NavigationToolbar2TkAgg(self.frame, master)
         self.data_queue = shared_queue
         self.interactive_queue = interactive_filter_queue
         self.createWidgets()
 
 
     def createWidgets(self):
-        self.fig=plt.figure(figsize=(10,10))
+        self.fig = plt.figure(figsize=(10,10))
         # ax=fig.add_axes([0.1,0.1,0.8,0.8],polar=True)
-        self.gs= GridSpec(3,1)
+        self.gs = GridSpec(4,1)
         ax = self.fig.add_subplot(self.gs[0:2,:])
         self.im = ax.imshow(-np.random.random([128,128]), origin = 'upper', cmap=plt.cm.RdYlGn, interpolation = 'nearest', vmax=0, vmin=-400000)
 
@@ -45,16 +48,21 @@ class Application(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig,master=root)
         self.canvas.get_tk_widget().grid(row=0,column=1)
 
-
+        self.toolbar = NavigationToolbar2TkAgg(self.canvas, root)
+        # self.toolbar.update()
+        # self.canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        self.canvas.get_tk_widget().grid(row=0,column=1)
+        plt.tight_layout()
         # self.plotbutton=tk.Button(master=root, text="plot", command=lambda: self.plot(canvas,ax,im))
-        self.plotbutton = tk.Button(master=root, text="plot", command=lambda: self.plot())
-        self.plotbutton.grid(row=0,column=0)
+        # self.plotbutton = tk.Button(master=self.frame, text="plot", command=lambda: self.plot())
+        #self.plotbutton.grid(row=3,column=0)
 
-        self.srcbin_label = Label(master=root, text="Enter the dst bin to filter: ")
-        self.srcbin_label.grid(row=0, column=0)
-
-        self.srcbin_entry = Entry(master=root)
+        self.srcbin_label = Label(master=self.frame, text="Enter the dst bin to filter: ")
+        self.srcbin_label.grid(row=3, column=1)
+        # self.srcbin_label.pack(side="left")
+        self.srcbin_entry = Entry(master=self.frame)
         self.srcbin_entry.grid(row=1, column=0)
+        # self.srcbin_entry.pack(side="right")
         self.srcbin_entry.bind("<Return>",self.evaluate)
         self.canvas.show()
         logging.info("Window configured!")
