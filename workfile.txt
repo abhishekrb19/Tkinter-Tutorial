@@ -1,0 +1,6 @@
+The result of www.espn.com is 199.181.133.15
+The result of www.espn.com is 199.454.152.10
+The result of www.espn.com is 20.254.215.14
+The result of www.google.com is 141.254.15.14
+The result of www.google.com is 172.14.54.153
+The result of www.yahoo.com is 181.145.254.12
