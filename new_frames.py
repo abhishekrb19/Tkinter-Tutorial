@@ -54,7 +54,8 @@ class AMON_App(Frame):
         self.label_dst.grid(sticky=W)
         self.entry_dst = Entry(master=self.widgets_frame)
         self.entry_dst.grid(sticky=W)
-        self.entry_dst.bind("<Return>",self.evaluate_dst)
+        # self.entry_dst.bind("<Return>",self.evaluate_dst)
+        self.entry_dst.bind("<Return>",self.parse_bins_from_dst_entry_box)
 
         # Button widget that handles both source and destination widgets
         self.button = Button(master=self.widgets_frame, text="Click to Filter!")
@@ -149,6 +150,24 @@ class AMON_App(Frame):
         logging.warn("Entered Consolidated into Queue:%d"%consolidated_bins)
         self.interactive_filter_queue.put(consolidated_bins)
 
+    def parse_bins_from_dst_entry_box(self, val):
+        bins = bitarray(128)
+        bins.setall(0)
+        string = self.entry_dst.get()
+
+        logging.warn("Entered string was: %s"%string)
+        split_bins_list = string.split(" ")
+        if int(split_bins_list[0]) == -1:
+            logging.warn("EXPLICIT Entered Consolidated into Queue:%d"%-1)
+            self.interactive_filter_queue.put(-1)
+        else:
+            for each_bin in split_bins_list:
+                bins[int(each_bin)] = 1
+
+            consolidated_bins = self.shifting(bins)
+            logging.warn("Entered Consolidated into Queue:%d"%consolidated_bins)
+            self.interactive_filter_queue.put(consolidated_bins)
+
 
     def shifting(self, bitlist):
         out = 0
@@ -159,6 +178,9 @@ class AMON_App(Frame):
 
 class FlowtransmitImpl(ip_proto_capnp.Flowtransmit.Server):
     "Implementation of Flow Transmit Interface in the schema file"
+    def __init__(self):
+        self.sent_bin = None
+        self.already_sent = False
 
     def src(self, databrick, hitters, _context, **kwargs):
 
@@ -190,13 +212,20 @@ class FlowtransmitImpl(ip_proto_capnp.Flowtransmit.Server):
         try:
             filter_bin = interactive_filter_queue.get(block = False)
             logging.warn("filter bin entered: %d",int(filter_bin))
+            self.sent_bin = int(filter_bin)
             return int(filter_bin)
         except:
-            logging.warn("Nothing was entered")
-            return
+
+            if not self.sent_bin:
+                logging.warn("Nothing was entered")
+                return 0
+            else:
+                return int(self.sent_bin)
 
 def listen_conn_process(data_queue, interactive_filter_queue, port_number):
     address = "*:"+ str(port_number)
+    already_sent = False
+    sent_bin = None
     server = capnp.TwoPartyServer(address,bootstrap=FlowtransmitImpl())
     custom_config.ConfigLoggerAndFlags()
     logging.info("Listening to Incoming connections on port:%d"%port_number)

@@ -14,11 +14,11 @@ print bit_array
 # print bit_array.decode()
 
 aa = [0] * 128
-# aa[10] = 1 # choose bin num 10
-# aa[12] = 1 # choose bin num 12
-# aa[2] = 1
-# aa[3] = 1
-# aa[5] = 1
+aa[10] = 1 # choose bin num 10
+aa[12] = 1 # choose bin num 12
+aa[2] = 1
+aa[3] = 1
+#aa[5] = 1
 
 def shifting(bitlist):
      out = 0
