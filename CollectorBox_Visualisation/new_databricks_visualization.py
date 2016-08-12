@@ -1,3 +1,4 @@
+__author__ = 'Abhishek'
 import matplotlib
 matplotlib.use('TkAgg')
 import numpy as np
@@ -22,7 +23,7 @@ import gflags
 import Tkinter
 from Tkinter import *
 from bitarray import bitarray
-
+import warnings
 
 
 class AMON_App(Frame):
@@ -49,7 +50,7 @@ class AMON_App(Frame):
         self.label_src.grid(sticky=W)
         self.entry_src = Entry(master=self.widgets_frame)
         self.entry_src.grid(sticky=W)
-        self.entry_src.bind("<Return>",self.parse_bins_from_src_entry_box_into_intarray)
+        #self.entry_src.bind("<Return>",self.parse_bins_from_src_entry_box_into_intarray)
 
 
         # Destination bucket widgets
@@ -58,7 +59,7 @@ class AMON_App(Frame):
         self.entry_dst = Entry(master=self.widgets_frame)
         self.entry_dst.grid(sticky=W)
         # self.entry_dst.bind("<Return>",self.evaluate_dst)
-        self.entry_dst.bind("<Return>",self.parse_bins_from_dst_entry_box_into_intarray)
+        #self.entry_dst.bind("<Return>",self.parse_bins_from_dst_entry_box_into_intarray)
 
         # Button widget that handles both source and destination widgets
         self.button = Button(master=self.widgets_frame, text="Click to Filter!")
@@ -130,18 +131,63 @@ class AMON_App(Frame):
 
 
     def evaluate_src_dst(self, event):
-        # logging.info("Filtering Src and Dst bins:%d and %d"%(self.entry_src.get(), self.entry_dst.get()))
-        logging.info("Filtering Src and Dst bins:%d and %d"%(0, int(self.entry_dst.get())))
+        # logging.info("Filtering Src and Dst bins:%d and %d"%(0, int(self.entry_dst.get())))
         #filter_src_bin = int(self.entry_src.get())
-        filter_dst_bin = int(self.entry_dst.get())
-        self.interactive_filter_queue.put(filter_dst_bin)
 
+        # filter_dst_bin = int(self.entry_dst.get())
+        # self.interactive_filter_queue.put(filter_dst_bin)
+
+        string_src = self.entry_src.get()
+        string_dst = self.entry_dst.get()
+        logging.warn("Entered string for src and dst are: %s, %s"%(string_src, string_dst))
+
+        split_bins_list_src = string_src.split(" ")
+        split_bins_list_dst = string_dst.split(" ")
+
+        # Source text box processing follows here
+        if int(split_bins_list_src[0]) == -1:
+            self.src_int_bin_map[0] = 2
+            logging.warn("Clearing src bin by setting it to: %d"%2)
+
+            #self.interactive_filter_queue.put(self.src_int_bin_map)
+        else:
+            for bin in split_bins_list_src:
+                bin = int(bin)
+                self.src_int_bin_map[bin] = 1
+
+            logging.warn("Src bin processing done: %s"%self.src_int_bin_map)
+            #self.interactive_filter_queue.put(self.src_int_bin_map)
+
+        # Destination text box processing follows here
+        if int(split_bins_list_dst[0]) == -1:
+            self.dst_int_bin_map[0] = 2
+            logging.warn("Clearing dst bin by setting it to::%d"%2)
+
+            #self.interactive_filter_queue.put(self.dst_int_bin_map)
+        else:
+            for bin in split_bins_list_dst:
+                bin = int(bin)
+                self.dst_int_bin_map[bin] = 1
+
+            logging.warn("Dst bin processing done: %s"%self.dst_int_bin_map)
+            #self.interactive_filter_queue.put(self.dst_int_bin_map)
+
+        logging.warn("Inserting the src and dst bin filter lists into queue")
+        self.interactive_filter_queue.put((self.src_int_bin_map,self.dst_int_bin_map))
+        # clear the map now
+        logging.warn("Clearing the 128 byte char maps for src and dst filter bins now!")
+        self.src_int_bin_map = [0]*128
+        self.dst_int_bin_map = [0]*128
+
+
+
+    # Deprecated
     def evaluate_src(self,val):
         #logging.info("Filtering Src bin value:%d"%int(self.entry_src.get()))
         #filter_src_bin = int(self.entry_src.get())
         logging.warn("Sorry, this textbox is not configured yet!")
 
-    # This following method is obsolete! consider using the parse_bins_from_dst_entry_box_into_bitarray
+    # Deprecated -- This following method is obsolete! consider using the parse_bins_from_dst_entry_box_into_bitarray
     # or parse_bins_from_dst_entry_box_into_intarray
     def evaluate_dst(self,val):
         logging.warn("Filtering Dst bin value:%d"%int(self.entry_dst.get()))
@@ -199,7 +245,7 @@ class AMON_App(Frame):
         logging.warn("Cleared the 128 byte char map now!")
         self.dst_int_bin_map = [0]*128
 
-
+    # Deprecated
     def parse_bins_from_dst_entry_box_into_bitarray(self, val):
         bins = bitarray(128)
         bins.setall(0)
@@ -218,7 +264,7 @@ class AMON_App(Frame):
             logging.warn("Entered Consolidated into Queue:%d"%consolidated_bins)
             self.interactive_filter_queue.put(consolidated_bins)
 
-
+    # Deprecated
     def shifting(self, bitlist):
         out = 0
         for bit in reversed(bitlist):
@@ -229,7 +275,8 @@ class AMON_App(Frame):
 class FlowtransmitImpl(ip_proto_list_capnp.Flowtransmit.Server):
     "Implementation of Flow Transmit Interface in the schema file"
     def __init__(self):
-        self.sent_bin = None
+        self.sent_src_bin = None
+        self.sent_dst_bin = None
         self.already_sent = False
 
     def src(self, databrick, hitters, _context, **kwargs):
@@ -263,19 +310,25 @@ class FlowtransmitImpl(ip_proto_list_capnp.Flowtransmit.Server):
 
             # logging.warn("filter bin entered: %d",int(filter_bin))
             #self.sent_bin = int(filter_bin)
-            filter_bin = interactive_filter_queue.get(block = False)
-            logging.warn("filter bin entered: %s",(filter_bin))
-            self.sent_bin = filter_bin
-            return self.sent_bin
+            bins_tuple = interactive_filter_queue.get(block = False)
+
+            logging.warn("filter bin entered: %s",(bins_tuple))
+            logging.warn("*****************")
+            logging.warn("filter src bin entered: %s",(bins_tuple[0]))
+            logging.warn("-----------------")
+            logging.warn("filter dst bin entered: %s",(bins_tuple[1]))
+            self.sent_src_bin = bins_tuple[0]
+            self.sent_dst_bin = bins_tuple[1]
+            return bins_tuple
             #return int(filter_bin)
             #return filter_bin
         except:
-            if not self.sent_bin:
+            if not self.sent_src_bin: # or self.sent_dst_bin
                 logging.warn("Nothing was entered")
-                return [0]*128
+                return [0]*128, [0]*128
             else:
                 #return int(self.sent_bin)
-                return self.sent_bin
+                return self.sent_src_bin, self.sent_dst_bin
 
 def listen_conn_process(data_queue, interactive_filter_queue, port_number):
     address = "*:"+ str(port_number)
