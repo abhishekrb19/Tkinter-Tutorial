@@ -36,7 +36,8 @@ class AMON_App(Frame):
         self.create_graphs()
         self.pack(fill='both', expand=True)
 
-        self.char_bin_map = [0]*128 #to mimic 128 bitmap for faster table lookups
+        self.src_int_bin_map = [0]*128 #to mimic 128 bitmap for src bins faster table lookups
+        self.dst_int_bin_map = [0]*128 #to mimic 128 bitmap for dst bins faster table lookups
 
     def create_widgets(self):
         # Frame that resides on the left side of the window
@@ -44,11 +45,11 @@ class AMON_App(Frame):
         self.widgets_frame.pack(side='left', padx=10, pady=10, fill='both')
 
         # Source bucket widgets
-        # self.label_src = Label(master=self.widgets_frame, text="Enter the src bin to filter: ", font=('bold'))
-        # self.label_src.grid(sticky=W)
-        # self.entry_src = Entry(master=self.widgets_frame)
-        # self.entry_src.grid(sticky=W)
-        # self.entry_src.bind("<Return>",self.evaluate_src)
+        self.label_src = Label(master=self.widgets_frame, text="Enter the src bin to filter: ", font=('bold'))
+        self.label_src.grid(sticky=W)
+        self.entry_src = Entry(master=self.widgets_frame)
+        self.entry_src.grid(sticky=W)
+        self.entry_src.bind("<Return>",self.parse_bins_from_src_entry_box_into_intarray)
 
 
         # Destination bucket widgets
@@ -140,7 +141,7 @@ class AMON_App(Frame):
         #filter_src_bin = int(self.entry_src.get())
         logging.warn("Sorry, this textbox is not configured yet!")
 
-    # this following method is obsolete! consider using the parse_bins_from_dst_entry_box_into_bitarray
+    # This following method is obsolete! consider using the parse_bins_from_dst_entry_box_into_bitarray
     # or parse_bins_from_dst_entry_box_into_intarray
     def evaluate_dst(self,val):
         logging.warn("Filtering Dst bin value:%d"%int(self.entry_dst.get()))
@@ -154,27 +155,49 @@ class AMON_App(Frame):
         logging.warn("Entered Consolidated into Queue:%d"%consolidated_bins)
         self.interactive_filter_queue.put(consolidated_bins)
 
+    def parse_bins_from_src_entry_box_into_intarray(self, val):
+        string = self.entry_src.get()
+
+        logging.warn("Entered string was: %s"%string)
+        split_bins_list = string.split(" ")
+        if int(split_bins_list[0]) == -1:
+            self.src_int_bin_map[0] = 2
+            logging.warn("EXPLICIT Entered Consolidated into Queue:%d"%-1)
+
+            self.interactive_filter_queue.put(self.src_int_bin_map)
+        else:
+            for bin in split_bins_list:
+                bin = int(bin)
+                self.src_int_bin_map[bin] = 1
+
+            logging.warn("Putting the 128 byte char map into Queue:%s"%self.src_int_bin_map)
+            self.interactive_filter_queue.put(self.src_int_bin_map)
+
+        # clear the map now
+        logging.warn("Cleared the 128 byte char map now!")
+        self.src_int_bin_map = [0]*128
+
     def parse_bins_from_dst_entry_box_into_intarray(self, val):
         string = self.entry_dst.get()
 
         logging.warn("Entered string was: %s"%string)
         split_bins_list = string.split(" ")
         if int(split_bins_list[0]) == -1:
-            self.char_bin_map[0] = 2
+            self.dst_int_bin_map[0] = 2
             logging.warn("EXPLICIT Entered Consolidated into Queue:%d"%-1)
 
-            self.interactive_filter_queue.put(self.char_bin_map)
+            self.interactive_filter_queue.put(self.dst_int_bin_map)
         else:
             for bin in split_bins_list:
                 bin = int(bin)
-                self.char_bin_map[bin] = 1
+                self.dst_int_bin_map[bin] = 1
 
-            logging.warn("Putting the 128 byte char map into Queue:%s"%self.char_bin_map)
-            self.interactive_filter_queue.put(self.char_bin_map)
+            logging.warn("Putting the 128 byte char map into Queue:%s"%self.dst_int_bin_map)
+            self.interactive_filter_queue.put(self.dst_int_bin_map)
 
-            # clear the map now
+        # clear the map now
         logging.warn("Cleared the 128 byte char map now!")
-        self.char_bin_map = [0]*128
+        self.dst_int_bin_map = [0]*128
 
 
     def parse_bins_from_dst_entry_box_into_bitarray(self, val):
