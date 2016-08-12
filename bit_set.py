@@ -35,7 +35,6 @@ class AMON_App(Frame):
         self.create_graphs()
         self.pack(fill='both', expand=True)
 
-        self.char_bin_map = [0]*128 #to mimic 128 bitmap for faster table lookups
 
     def create_widgets(self):
         # Frame that resides on the left side of the window
@@ -56,7 +55,7 @@ class AMON_App(Frame):
         self.entry_dst = Entry(master=self.widgets_frame)
         self.entry_dst.grid(sticky=W)
         # self.entry_dst.bind("<Return>",self.evaluate_dst)
-        self.entry_dst.bind("<Return>",self.parse_bins_from_dst_entry_box_into_intarray)
+        self.entry_dst.bind("<Return>",self.parse_bins_from_dst_entry_box)
 
         # Button widget that handles both source and destination widgets
         self.button = Button(master=self.widgets_frame, text="Click to Filter!")
@@ -139,8 +138,6 @@ class AMON_App(Frame):
         #filter_src_bin = int(self.entry_src.get())
         logging.warn("Sorry, this textbox is not configured yet!")
 
-    # this following method is obsolete! consider using the parse_bins_from_dst_entry_box_into_bitarray
-    # or parse_bins_from_dst_entry_box_into_intarray
     def evaluate_dst(self,val):
         logging.warn("Filtering Dst bin value:%d"%int(self.entry_dst.get()))
         filter_dst_bin = int(self.entry_dst.get())
@@ -153,33 +150,7 @@ class AMON_App(Frame):
         logging.warn("Entered Consolidated into Queue:%d"%consolidated_bins)
         self.interactive_filter_queue.put(consolidated_bins)
 
-    def parse_bins_from_dst_entry_box_into_intarray(self, val):
-        string = self.entry_dst.get()
-
-        logging.warn("Entered string was: %s"%string)
-        split_bins_list = string.split(" ")
-        if int(split_bins_list[0]) == -1:
-            self.char_bin_map[0] = 2
-            logging.warn("EXPLICIT Entered Consolidated into Queue:%d"%-1)
-
-            self.interactive_filter_queue.put(self.char_bin_map)
-        else:
-            for bin in split_bins_list:
-                bin = int(bin)
-                self.char_bin_map[bin] = 1
-
-            logging.warn("Putting the 128 byte char map into Queue:%s"%self.char_bin_map)
-            self.interactive_filter_queue.put(self.char_bin_map)
-
-            # clear the map now
-        logging.warn("Cleared the 128 byte char map now!")
-        self.char_bin_map = [0]*128
-
-
-
-
-
-    def parse_bins_from_dst_entry_box_into_bitarray(self, val):
+    def parse_bins_from_dst_entry_box(self, val):
         bins = bitarray(128)
         bins.setall(0)
         string = self.entry_dst.get()
@@ -239,22 +210,17 @@ class FlowtransmitImpl(ip_proto_capnp.Flowtransmit.Server):
         data_queue.put((np_databrick, src_hitters_li, dst_hitters_li, hitter_bytes))
 
         try:
-
-            # logging.warn("filter bin entered: %d",int(filter_bin))
-            #self.sent_bin = int(filter_bin)
             filter_bin = interactive_filter_queue.get(block = False)
-            logging.warn("filter bin entered: %s",(filter_bin))
-            self.sent_bin = filter_bin
-            return self.sent_bin
-            #return int(filter_bin)
-            #return filter_bin
+            logging.warn("filter bin entered: %d",int(filter_bin))
+            self.sent_bin = int(filter_bin)
+            return int(filter_bin)
         except:
+
             if not self.sent_bin:
                 logging.warn("Nothing was entered")
-                return [0]*128
+                return 0
             else:
-                #return int(self.sent_bin)
-                return self.sent_bin
+                return int(self.sent_bin)
 
 def listen_conn_process(data_queue, interactive_filter_queue, port_number):
     address = "*:"+ str(port_number)

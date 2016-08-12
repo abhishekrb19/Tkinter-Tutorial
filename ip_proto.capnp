@@ -19,7 +19,8 @@ struct FlowIn{
 interface Flowtransmit{
 
   #src @0 (srcip :Text) -> ();
-  src @0 (databrick: List(UInt32), hitters: List(Lidatabrick)) -> (value: Float64);
+  #src @0 (databrick: List(UInt32), hitters: List(Lidatabrick)) -> (value: Float64);
+  src @0 (databrick: List(UInt32), hitters: List(Lidatabrick)) -> (value: List(UInt32));
   #src @0 (port :Int32, srcip: Text, dbk1: List(Sbk1), databrick: List(Lidatabrick)) -> (value: Float64);
   #srcport @1 : UInt32;
 }
