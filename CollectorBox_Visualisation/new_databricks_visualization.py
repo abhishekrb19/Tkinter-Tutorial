@@ -23,7 +23,20 @@ import gflags
 import Tkinter
 from Tkinter import *
 from bitarray import bitarray
-import warnings
+# import warnings
+import subprocess, signal, os
+
+
+
+
+
+
+gflags.DEFINE_string('port', 8000, 'Port number to bind the socket to (Default:8000)')
+custom_config.ConfigLoggerAndFlags()
+logging.info("Setting up the GFLAGS config")
+FLAGS = gflags.FLAGS
+capnp.remove_import_hook()
+port_number = int(FLAGS.port)
 
 
 class AMON_App(Frame):
@@ -45,20 +58,25 @@ class AMON_App(Frame):
         self.widgets_frame = Frame(self)
         self.widgets_frame.pack(side='left', padx=10, pady=10, fill='both')
 
+
+
+        # Destination bucket widgets
+        self.label_dst = Label(master=self.widgets_frame, text="Enter the src bin to filter: ", font=('bold'))
+        self.label_dst.grid(sticky=W)
+        self.entry_dst = Entry(master=self.widgets_frame)
+        self.entry_dst.grid(sticky=W)
+        # self.entry_dst.bind("<Return>",self.evaluate_dst)
+
+
         # Source bucket widgets
-        self.label_src = Label(master=self.widgets_frame, text="Enter the src bin to filter: ", font=('bold'))
+        self.label_src = Label(master=self.widgets_frame, text="Enter the dst bin to filter: ", font=('bold'))
         self.label_src.grid(sticky=W)
         self.entry_src = Entry(master=self.widgets_frame)
         self.entry_src.grid(sticky=W)
         #self.entry_src.bind("<Return>",self.parse_bins_from_src_entry_box_into_intarray)
 
 
-        # Destination bucket widgets
-        self.label_dst = Label(master=self.widgets_frame, text="Enter the dst bin to filter: ", font=('bold'))
-        self.label_dst.grid(sticky=W)
-        self.entry_dst = Entry(master=self.widgets_frame)
-        self.entry_dst.grid(sticky=W)
-        # self.entry_dst.bind("<Return>",self.evaluate_dst)
+
         #self.entry_dst.bind("<Return>",self.parse_bins_from_dst_entry_box_into_intarray)
 
         # Button widget that handles both source and destination widgets
@@ -95,6 +113,7 @@ class AMON_App(Frame):
         self.canvas.show()
 
     def refresher(self):
+
 
         proto_obj = self.data_queue.get()
         if  proto_obj[0].size == 0:
@@ -272,6 +291,25 @@ class AMON_App(Frame):
         return out
 
 
+
+def signal_handler(_, __):
+
+    logging.critical("You pressed Ctrl + C / Ctrl + Z to terminate the program")
+    p = subprocess.Popen(['ps', '-A'], stdout=subprocess.PIPE)
+    out, err = p.communicate()
+    pids = []
+    logging.info("Killing this running script: %s"%__file__)
+    for line in out.splitlines():
+        if __file__ in line:
+            pid = int(line.split(None, 1)[0])
+            pids.append(pid)
+
+    logging.critical("Killing Parent and Child processes")
+    logging.info("Killing Child Process with pid: %d"%pids[-1])
+    os.kill(pids[-1], signal.SIGKILL)
+    logging.info("Killing Parent Process with pid: %d"%pids[0])
+    os.kill(pids[0], signal.SIGKILL)
+
 class FlowtransmitImpl(ip_proto_list_capnp.Flowtransmit.Server):
     "Implementation of Flow Transmit Interface in the schema file"
     def __init__(self):
@@ -279,10 +317,10 @@ class FlowtransmitImpl(ip_proto_list_capnp.Flowtransmit.Server):
         self.sent_dst_bin = None
         self.already_sent = False
 
+
     def src(self, databrick, hitters, _context, **kwargs):
 
         np_databrick = np.array(databrick)
-        #print np_databrick
 
         #print np_databrick[0]
         count_zeros = 0
@@ -332,8 +370,6 @@ class FlowtransmitImpl(ip_proto_list_capnp.Flowtransmit.Server):
 
 def listen_conn_process(data_queue, interactive_filter_queue, port_number):
     address = "*:"+ str(port_number)
-    already_sent = False
-    sent_bin = None
     server = capnp.TwoPartyServer(address,bootstrap=FlowtransmitImpl())
     custom_config.ConfigLoggerAndFlags()
     logging.info("Listening to Incoming connections on port:%d"%port_number)
@@ -342,12 +378,6 @@ def listen_conn_process(data_queue, interactive_filter_queue, port_number):
 
 
 if __name__ == '__main__':
-    FLAGS = gflags.FLAGS
-    capnp.remove_import_hook()
-    gflags.DEFINE_string('port', 8000, 'Port number to bind the socket to (Default:8000)')
-
-    port_number = int(FLAGS.port)
-    custom_config.ConfigLoggerAndFlags()
 
     manager = multiprocessing.Manager()
     data_queue = manager.Queue()
@@ -357,7 +387,12 @@ if __name__ == '__main__':
 
     cap_conn_process = Process(target=listen_conn_process, args=(data_queue,interactive_filter_queue, port_number))
     cap_conn_process.start()
-    logging.info("Cap'n Proto process started on port:%d"%port_number)
+    logging.warn("Cap'n Proto process started on port:%d"%port_number)
+
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler) # Ctrl + C
+    #signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGTSTP, signal_handler) # Ctrl + Z
 
     root = Tk()
     app = AMON_App(master=root, data_queue=data_queue,interactive_filter_queue=interactive_filter_queue)
