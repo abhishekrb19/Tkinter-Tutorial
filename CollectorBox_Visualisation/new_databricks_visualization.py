@@ -49,6 +49,7 @@ class AMON_App(Frame):
         self.create_widgets()
         self.create_graphs()
         self.pack(fill='both', expand=True)
+        self.play_pause = True # True (play), False (pause)
 
         self.src_int_bin_map = [0]*128 #to mimic 128 bitmap for src bins faster table lookups
         self.dst_int_bin_map = [0]*128 #to mimic 128 bitmap for dst bins faster table lookups
@@ -76,13 +77,29 @@ class AMON_App(Frame):
         #self.entry_src.bind("<Return>",self.parse_bins_from_src_entry_box_into_intarray)
 
 
-
         #self.entry_dst.bind("<Return>",self.parse_bins_from_dst_entry_box_into_intarray)
 
         # Button widget that handles both source and destination widgets
         self.button = Button(master=self.widgets_frame, text="Click to Filter!")
         self.button.bind("<Button-1>",self.evaluate_src_dst) # Binding event -- Button 1 (left mouse click)!
         self.button.grid(sticky=W)
+
+        # Add Pause/ Play button
+        self.pause_button = Button(master=self.widgets_frame, text="Pause")
+        self.pause_button.bind("<Button-1>",self.trigger_pause)
+        self.pause_button.grid(sticky=W)
+
+
+        #TODO(abhishek): Add a Stop/Close button to close the window.
+        # Even better, override the close button of window to call
+        # signal_handler and terminate all processes once clicked.
+
+    def trigger_pause(self,event_click):
+        self.play_pause ^= True
+        if self.play_pause:
+            self.pause_button.config(text="Pause")
+        else:
+            self.pause_button.config(text="Play")
 
     def create_graphs(self):
 
@@ -114,42 +131,46 @@ class AMON_App(Frame):
 
     def refresher(self):
 
-        try:
-            proto_obj = self.data_queue.get(block=False)
-            if  proto_obj[0].size == 0:
+        if self.play_pause:
 
-                # self.after(2000, self.refresher)
-                self.graphFrame.after(1000,self.refresher)
-            else:
-                # databrick sketch
-                num_intensities = proto_obj[0].reshape(128,128)
-                self.im.set_array(-num_intensities)
+            try:
+                proto_obj = self.data_queue.get(block=False)
+                if  proto_obj[0].size == 0:
 
-                combined = []
-                for idx, src in enumerate(proto_obj[1]):
-                    combined.append(src + "\n - \n" + proto_obj[2][idx])
-                y_pos = np.arange(len(combined))
-
-                #TODO(abhishek): Push this to below ==0: block (to avoid re-drawing all the time)?
-
-
-                if self.num_graphed == 0:
-                    self.bar_rect = plt.bar(y_pos, proto_obj[3], align='center', alpha=0.3, width=0.2, color='maroon')
-                    self.num_graphed += 1
+                    # self.after(2000, self.refresher)
+                    self.graphFrame.after(1000,self.refresher)
                 else:
+                    # databrick sketch
+                    num_intensities = proto_obj[0].reshape(128,128)
+                    self.im.set_array(-num_intensities)
 
-                    for i in range(len(combined)):
-                        for rect, h in zip(self.bar_rect, proto_obj[3]):
-                            rect.set_height(h)
+                    combined = []
+                    for idx, src in enumerate(proto_obj[1]):
+                        combined.append(src + "\n - \n" + proto_obj[2][idx])
+                    y_pos = np.arange(len(combined))
 
-                plt.xticks(y_pos, combined)
-                plt.ylabel('# of Bytes')
-                plt.xlabel('Top %d hitters (src ip - dst ip)' %len(combined))
-                self.canvas.draw()
-                # self.after(2000, self.refresher) # every second...
-                self.graphFrame.after(1000,self.refresher)
-        except:
-            logging.info("Empty exception as queue")
+                    #TODO(abhishek): Push this to below ==0: block (to avoid re-drawing all the time)?
+
+
+                    if self.num_graphed == 0:
+                        self.bar_rect = plt.bar(y_pos, proto_obj[3], align='center', alpha=0.3, width=0.2, color='maroon')
+                        self.num_graphed += 1
+                    else:
+
+                        for i in range(len(combined)):
+                            for rect, h in zip(self.bar_rect, proto_obj[3]):
+                                rect.set_height(h)
+
+                    plt.xticks(y_pos, combined)
+                    plt.ylabel('# of Bytes')
+                    plt.xlabel('Top %d hitters (src ip - dst ip)' %len(combined))
+                    self.canvas.draw()
+                    # self.after(2000, self.refresher) # every second...
+                    self.graphFrame.after(1000,self.refresher)
+            except:
+                logging.info("Empty exception as queue")
+                self.graphFrame.after(1000, self.refresher)
+        else:
             self.graphFrame.after(1000, self.refresher)
 
 
