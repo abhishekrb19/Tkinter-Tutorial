@@ -135,7 +135,7 @@ class AMON_App(Frame):
 
             try:
                 proto_obj = self.data_queue.get(block=False)
-                if  proto_obj[0].size == 0:
+                if  proto_obj[0].size == 0: # TODO(abhishek): Would control ever come here, since I added try-catch ?
 
                     # self.after(2000, self.refresher)
                     self.graphFrame.after(1000,self.refresher)
