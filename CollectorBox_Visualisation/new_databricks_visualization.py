@@ -142,6 +142,7 @@ class AMON_App(Frame):
                 else:
                     # databrick sketch
                     num_intensities = proto_obj[0].reshape(128,128)
+                    logging.info("databrick intensities:%s",num_intensities)
                     self.im.set_array(-num_intensities)
 
                     combined = []
@@ -355,7 +356,7 @@ class FlowtransmitImpl(ip_proto_list_capnp.Flowtransmit.Server):
                 count_zeros += 1
 
 
-        logging.info("# of zeros :%d, max: %d, min: %d"%(count_zeros, max(np_databrick), min(np_databrick)))
+        #logging.critical("# of zeros :%d, max: %d, min: %d"%(count_zeros, max(np_databrick), min(np_databrick)))
 
         src_hitters_li = []
         dst_hitters_li = []
