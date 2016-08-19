@@ -22,7 +22,7 @@ import logging
 import gflags
 import Tkinter
 from Tkinter import *
-# from bitarray import bitarray
+from bitarray import bitarray
 # import warnings
 import subprocess, signal, os
 
@@ -89,18 +89,6 @@ class AMON_App(Frame):
         self.pause_button.bind("<Button-1>",self.trigger_pause)
         self.pause_button.grid(sticky=W)
 
-
-        #TODO(abhishek): Add a Stop/Close button to close the window.
-        # Even better, override the close button of window to call
-        # signal_handler and terminate all processes once clicked.
-
-    def trigger_pause(self,event_click):
-        self.play_pause ^= True
-        if self.play_pause:
-            self.pause_button.config(text="Pause")
-        else:
-            self.pause_button.config(text="Play")
-
     def create_graphs(self):
 
         # Frame that resides on right side of window
@@ -113,7 +101,8 @@ class AMON_App(Frame):
         self.fig = plt.figure(figsize=(10,10))
         self.gs = GridSpec(3,1)
         ax = self.fig.add_subplot(self.gs[0:2,:])
-        self.im = ax.imshow(-np.random.random([128,128]), origin = 'upper', cmap=plt.cm.RdYlGn, interpolation = 'nearest', vmax=0, vmin=-400000)
+        #self.im = ax.imshow(-np.random.random([128,128]), origin = 'upper', cmap=plt.cm.RdYlGn, interpolation = 'nearest', vmax=0, vmin=-400000)
+        self.im = ax.imshow(-np.random.random([128,128]), origin = 'upper', cmap=plt.cm.RdYlGn, interpolation = 'nearest')
 
 
         # bar graph visualization
@@ -142,6 +131,7 @@ class AMON_App(Frame):
                 else:
                     # databrick sketch
                     num_intensities = proto_obj[0].reshape(128,128)
+                    logging.info("databrick intensities:%s",num_intensities)
                     self.im.set_array(-num_intensities)
 
                     combined = []
@@ -225,98 +215,12 @@ class AMON_App(Frame):
         self.dst_int_bin_map = [0]*128
 
 
-
-    # Deprecated
-    def evaluate_src(self,val):
-        #logging.info("Filtering Src bin value:%d"%int(self.entry_src.get()))
-        #filter_src_bin = int(self.entry_src.get())
-        logging.warn("Sorry, this textbox is not configured yet!")
-
-    # Deprecated -- This following method is obsolete! consider using the parse_bins_from_dst_entry_box_into_bitarray
-    # or parse_bins_from_dst_entry_box_into_intarray
-    def evaluate_dst(self,val):
-        logging.warn("Filtering Dst bin value:%d"%int(self.entry_dst.get()))
-        filter_dst_bin = int(self.entry_dst.get())
-        bins = bitarray(128)
-        bins.setall(0)
-        bins[filter_dst_bin] = 1
-        # TODO(abhishek): Here we will have to get multiple bins and put them into the bitmap
-
-        consolidated_bins = self.shifting(bins)
-        logging.warn("Entered Consolidated into Queue:%d"%consolidated_bins)
-        self.interactive_filter_queue.put(consolidated_bins)
-
-    def parse_bins_from_src_entry_box_into_intarray(self, val):
-        string = self.entry_src.get()
-
-        logging.warn("Entered string was: %s"%string)
-        split_bins_list = string.split(" ")
-        if int(split_bins_list[0]) == -1:
-            self.src_int_bin_map[0] = 2
-            logging.warn("EXPLICIT Entered Consolidated into Queue:%d"%-1)
-
-            self.interactive_filter_queue.put(self.src_int_bin_map)
+    def trigger_pause(self,event_click):
+        self.play_pause ^= True
+        if self.play_pause:
+            self.pause_button.config(text="Pause")
         else:
-            for bin in split_bins_list:
-                bin = int(bin)
-                self.src_int_bin_map[bin] = 1
-
-            logging.warn("Putting the 128 byte char map into Queue:%s"%self.src_int_bin_map)
-            self.interactive_filter_queue.put(self.src_int_bin_map)
-
-        # clear the map now
-        logging.warn("Cleared the 128 byte char map now!")
-        self.src_int_bin_map = [0]*128
-
-    def parse_bins_from_dst_entry_box_into_intarray(self, val):
-        string = self.entry_dst.get()
-
-        logging.warn("Entered string was: %s"%string)
-        split_bins_list = string.split(" ")
-        if int(split_bins_list[0]) == -1:
-            self.dst_int_bin_map[0] = 2
-            logging.warn("EXPLICIT Entered Consolidated into Queue:%d"%-1)
-
-            self.interactive_filter_queue.put(self.dst_int_bin_map)
-        else:
-            for bin in split_bins_list:
-                bin = int(bin)
-                self.dst_int_bin_map[bin] = 1
-
-            logging.warn("Putting the 128 byte char map into Queue:%s"%self.dst_int_bin_map)
-            self.interactive_filter_queue.put(self.dst_int_bin_map)
-
-        # clear the map now
-        logging.warn("Cleared the 128 byte char map now!")
-        self.dst_int_bin_map = [0]*128
-
-    # Deprecated
-    def parse_bins_from_dst_entry_box_into_bitarray(self, val):
-        bins = bitarray(128)
-        bins.setall(0)
-        string = self.entry_dst.get()
-
-        logging.warn("Entered string was: %s"%string)
-        split_bins_list = string.split(" ")
-        if int(split_bins_list[0]) == -1:
-            logging.warn("EXPLICIT Entered Consolidated into Queue:%d"%-1)
-            self.interactive_filter_queue.put(-1)
-        else:
-            for each_bin in split_bins_list:
-                bins[int(each_bin)] = 1
-
-            consolidated_bins = self.shifting(bins)
-            logging.warn("Entered Consolidated into Queue:%d"%consolidated_bins)
-            self.interactive_filter_queue.put(consolidated_bins)
-
-    # Deprecated
-    def shifting(self, bitlist):
-        out = 0
-        for bit in reversed(bitlist):
-            out = (out << 1) | bit
-        return out
-
-
+            self.pause_button.config(text="Play")
 
 def signal_handler(_, __):
 
@@ -336,73 +240,6 @@ def signal_handler(_, __):
     logging.info("Killing Parent Process with pid: %d"%pids[0])
     os.kill(pids[0], signal.SIGKILL)
 
-class FlowtransmitImpl(ip_proto_list_capnp.Flowtransmit.Server):
-    "Implementation of Flow Transmit Interface in the schema file"
-    def __init__(self):
-        self.sent_src_bin = None
-        self.sent_dst_bin = None
-        self.already_sent = False
-
-
-    def src(self, databrick, hitters, _context, **kwargs):
-
-        np_databrick = np.array(databrick)
-
-        #print np_databrick[0]
-        count_zeros = 0
-        for d in range(len(np_databrick)):
-            if np_databrick[d] == 0:
-                count_zeros += 1
-
-
-        logging.info("# of zeros :%d, max: %d, min: %d"%(count_zeros, max(np_databrick), min(np_databrick)))
-
-        src_hitters_li = []
-        dst_hitters_li = []
-        hitter_bytes = []
-
-        for h in hitters:
-            src_hitters_li.append(h.ipsrc)
-            dst_hitters_li.append(h.ipdst)
-            hitter_bytes.append(h.bytes)
-
-        logging.info("Putting data brick and hitters in the shared process queue")
-
-        data_queue.put((np_databrick, src_hitters_li, dst_hitters_li, hitter_bytes))
-
-        try:
-
-            # logging.warn("filter bin entered: %d",int(filter_bin))
-            #self.sent_bin = int(filter_bin)
-            bins_tuple = interactive_filter_queue.get(block = False)
-
-            logging.warn("filter bin entered: %s",(bins_tuple))
-            logging.warn("*****************")
-            logging.warn("filter src bin entered: %s",(bins_tuple[0]))
-            logging.warn("-----------------")
-            logging.warn("filter dst bin entered: %s",(bins_tuple[1]))
-            self.sent_src_bin = bins_tuple[0]
-            self.sent_dst_bin = bins_tuple[1]
-            return bins_tuple
-            #return int(filter_bin)
-            #return filter_bin
-        except:
-            if not self.sent_src_bin: # or self.sent_dst_bin
-                logging.warn("Nothing was entered")
-                return [0]*128, [0]*128
-            else:
-                #return int(self.sent_bin)
-                return self.sent_src_bin, self.sent_dst_bin
-
-def listen_conn_process(data_queue, interactive_filter_queue, port_number):
-    address = "*:"+ str(port_number)
-    server = capnp.TwoPartyServer(address,bootstrap=FlowtransmitImpl())
-    custom_config.ConfigLoggerAndFlags()
-    logging.info("Listening to Incoming connections on port:%d"%port_number)
-    server.run_forever()
-
-
-
 if __name__ == '__main__':
 
     manager = multiprocessing.Manager()
@@ -411,9 +248,6 @@ if __name__ == '__main__':
     #interactive_filter_queue = manager.Queue()
     interactive_filter_queue = Queue()
 
-    cap_conn_process = Process(target=listen_conn_process, args=(data_queue,interactive_filter_queue, port_number))
-    cap_conn_process.start()
-    logging.warn("Cap'n Proto process started on port:%d"%port_number)
 
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler) # Ctrl + C
